@@ -141,8 +141,8 @@ void USFS::getChipID()
   writeByte(EM7180_ADDRESS, EM7180_ParamRequest, 0x00); //End parameter transfer
   writeByte(EM7180_ADDRESS, EM7180_AlgorithmControl, 0x00); // re-enable algorithm
   
-  //Disable stillness mode
-  EM7180_set_integer_param (0x49, 0x00);
+  //Enable stillness mode for asset tracker application
+  EM7180_set_integer_param (0x49, 0x01);
   
   //Write desired sensor full scale ranges to the EM7180
   EM7180_set_mag_acc_FS (magFS, accFS); // 1000 uT == 0x3E8, 8 g == 0x08
