@@ -32,13 +32,15 @@ Adafruit_SharpMem display(DSCK, DMOSI, DSS);
 // Butterfly
 #define myLed1 A5 // blue led 
 #define pps 39
+#define enableESP8285 10
 
 bool SerialDebug = true;
 
 uint16_t Hour = 0, Minute = 0, Second = 0, Millisec, Year = 0, Month = 0, Day = 0, Alt = 0;
 uint16_t hour = 0, minute = 0, second = 0, year = 0, month = 0, day = 0, millisec;
 bool ppsFlag = false, firstSync = false, alarmFlag = false;
-uint8_t count = 0, fixType = 0, fixQuality, latBytes[4], longBytes[4], tempBytes[4], pressBytes[4], yawBytes[4];
+uint8_t count = 0, fixType = 0, fixQuality, latBytes[4], longBytes[4], tempBytes[4], pressBytes[4];
+uint8_t yawBytes[2], pitchBytes[2], rollBytes[2];
 int32_t latOut;
 
 float Temperature, Long, Lat;
@@ -124,6 +126,9 @@ void setup()
   pinMode(myLed1, OUTPUT);
   digitalWrite(myLed1, LOW);  // start with blue led off, since active HIGH
 
+  pinMode(enableESP8285, OUTPUT);
+  digitalWrite(enableESP8285, LOW);  // disable ESP8285 to start
+
   // Voltage divider 27K/100K to monitor LiPo battery voltage
   pinMode(VbatMon, INPUT);
   analogReadResolution(12); // take advantage of 12-bit ADCs
@@ -160,7 +165,7 @@ void setup()
   GNSS.setPeriodic(5, 60, true);  // set periodic wake and sleep mode
   while (!GNSS.done()) { } // wait for set to complete
 
-  USFS.getChipID();  // check ROM/RAM version of EM7180
+  USFS.getChipID();        // check ROM/RAM version of EM7180
   USFS.loadfwfromEEPROM(); // load EM7180 firmware from EEPROM
   USFS.initEM7180(accBW, gyroBW, accFS, gyroFS, magFS, QRtDiv, magRt, accRt, gyroRt, baroRt); // set MPU and MS5637 sensor parameters
 
@@ -291,7 +296,7 @@ void loop()
 
       // Send some data to the SPI flash
       if (sector_number < 8 && page_number < 0xFFFF) { // 65,536 256-byte pages in a 16 MByte flash
-        flashPage[sector_number * 32 + 0]  = latBytes[0]; // latitude in bytes
+        flashPage[sector_number * 32 + 0]  = latBytes[0];  // latitude in bytes
         flashPage[sector_number * 32 + 1]  = latBytes[1];
         flashPage[sector_number * 32 + 2]  = latBytes[2];
         flashPage[sector_number * 32 + 3]  = latBytes[3];
@@ -299,28 +304,30 @@ void loop()
         flashPage[sector_number * 32 + 5]  = longBytes[1];
         flashPage[sector_number * 32 + 6]  = longBytes[2];
         flashPage[sector_number * 32 + 7]  = longBytes[3];
-        flashPage[sector_number * 32 + 8]  = yawBytes[0]; // heading
+        flashPage[sector_number * 32 + 8]  = yawBytes[0];   // heading
         flashPage[sector_number * 32 + 9]  = yawBytes[1];
-        flashPage[sector_number * 32 + 10] = yawBytes[2];
-        flashPage[sector_number * 32 + 11] = yawBytes[3];
-        flashPage[sector_number * 32 + 12] = pressBytes[0];
-        flashPage[sector_number * 32 + 13] = pressBytes[1];
-        flashPage[sector_number * 32 + 14] = pressBytes[2];
-        flashPage[sector_number * 32 + 15] = pressBytes[3];
-        flashPage[sector_number * 32 + 16] = tempBytes[0];
-        flashPage[sector_number * 32 + 17] = tempBytes[1];
-        flashPage[sector_number * 32 + 18] = tempBytes[2];
-        flashPage[sector_number * 32 + 19] = tempBytes[3];
-        flashPage[sector_number * 32 + 20] = Second;
-        flashPage[sector_number * 32 + 21] = Minute;
-        flashPage[sector_number * 32 + 22] = Hour;
-        flashPage[sector_number * 32 + 23] = Day;
-        flashPage[sector_number * 32 + 24] = Month;
-        flashPage[sector_number * 32 + 25] = (uint8_t) (Year - 2000);
-        flashPage[sector_number * 32 + 26] = (Alt & 0xFF00) >> 8; // MSB GPS altitude
-        flashPage[sector_number * 32 + 27] =  Alt & 0x00FF;       // LSB GPS altitude
-        flashPage[sector_number * 32 + 28] = (rawVbat & 0xFF00) >> 8; // battery voltage
-        flashPage[sector_number * 32 + 29] =  rawVbat & 0x00FF;
+        flashPage[sector_number * 32 + 10] = pitchBytes[0]; // pitch
+        flashPage[sector_number * 32 + 11] = pitchBytes[1];
+        flashPage[sector_number * 32 + 12] = rollBytes[0]; // roll
+        flashPage[sector_number * 32 + 13] = rollBytes[1];
+        flashPage[sector_number * 32 + 14] = pressBytes[0];
+        flashPage[sector_number * 32 + 15] = pressBytes[1];
+        flashPage[sector_number * 32 + 16] = pressBytes[2];
+        flashPage[sector_number * 32 + 17] = pressBytes[3];
+        flashPage[sector_number * 32 + 18] = tempBytes[0];
+        flashPage[sector_number * 32 + 19] = tempBytes[1];
+        flashPage[sector_number * 32 + 20] = tempBytes[2];
+        flashPage[sector_number * 32 + 21] = tempBytes[3];
+        flashPage[sector_number * 32 + 22] = Second;
+        flashPage[sector_number * 32 + 23] = Minute;
+        flashPage[sector_number * 32 + 24] = Hour;
+        flashPage[sector_number * 32 + 25] = Day;
+        flashPage[sector_number * 32 + 26] = Month;
+        flashPage[sector_number * 32 + 27] = (uint8_t) (Year - 2000);
+        flashPage[sector_number * 32 + 28] = (Alt & 0xFF00) >> 8; // MSB GPS altitude
+        flashPage[sector_number * 32 + 29] =  Alt & 0x00FF;       // LSB GPS altitude
+        flashPage[sector_number * 32 + 30] = (rawVbat & 0xFF00) >> 8; // battery voltage
+        flashPage[sector_number * 32 + 31] =  rawVbat & 0x00FF;
         sector_number++;
       }
       else if (sector_number == 8 && page_number < 0xFFFF)
@@ -488,11 +495,13 @@ void loop()
     Roll  = atan2f(A31, A33);
     Yaw   = atan2f(A12, A22);
     Pitch *= 180.0f / pi;
+    int16_t_float_to_bytes(Pitch, &pitchBytes[0]);
     Yaw   *= 180.0f / pi;
     Yaw   += 13.8f; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
     if (Yaw < 0) Yaw   += 360.0f ; // Ensure yaw stays between 0 and 360
-    int32_t_float_to_bytes(Yaw, &yawBytes[0]);
+    int16_t_float_to_bytes(Yaw, &yawBytes[0]);
     Roll  *= 180.0f / pi;
+    int16_t_float_to_bytes(Roll, &rollBytes[0]);
     lin_Ax = ax + a31;
     lin_Ay = ay + a32;
     lin_Az = az - a33;
@@ -642,5 +651,12 @@ void int32_t_float_to_bytes(float temp, uint8_t * dest)
   dest[1] = (tempOut & 0x00FF0000) >> 16;
   dest[2] = (tempOut & 0x0000FF00) >> 8;
   dest[3] = (tempOut & 0x000000FF);
+}
+
+void int16_t_float_to_bytes(float temp, uint8_t * dest)
+{
+  int32_t tempOut = temp * 50;
+  dest[0] = (tempOut & 0xFF00) >> 8;
+  dest[1] = (tempOut & 0x00FF);
 }
 
